@@ -1,19 +1,5 @@
-def day02(inp):
+def day02(inp, part2=False):
     rows = inp.strip().splitlines()
-
-    x = h = 0
-    for row in rows:
-        dir, val = row.split()
-        val = int(val)
-        if dir == 'forward':
-            x += val
-        elif dir == 'up':
-            h -= val
-        elif dir == 'down':
-            h += val
-        else:
-            assert False
-    part1 =  h * x
 
     x = h = aim = 0
     for row in rows:
@@ -21,18 +7,24 @@ def day02(inp):
         val = int(val)
         if dir == 'forward':
             x += val
-            h += val * aim
+            if part2:
+                h += val * aim
+            continue
         elif dir == 'up':
-            aim -= val
+            delta = -val
         elif dir == 'down':
-            aim += val
+            delta = val
         else:
-            assert False
-    part2 = x * h
+            raise ValueError(f'Invalid direction {dir}.')
 
-    return part1, part2
+        if part2:
+            aim += delta
+        else:
+            h += delta
+
+    return h * x
 
 
 if __name__ == "__main__":
     inp = open('day02.inp').read()
-    print(*day02(inp))
+    print(day02(inp), day02(inp, part2=True))
