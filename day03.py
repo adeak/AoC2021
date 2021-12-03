@@ -12,11 +12,13 @@ def day03(inp):
     epsilon = []
     for i in range(n):
         one_common = freq[i, '1'] > freq[i, '0']
-        gamma.append(1 if one_common else 0)
-        epsilon.append(0 if one_common else 1)
+        common_char = '1' if one_common else '0'
+        uncommon_char = '0' if one_common else '1'
+        gamma.append(common_char)
+        epsilon.append(uncommon_char)
 
-    gamma = sum(2**i*val for i, val in enumerate(gamma[::-1]))
-    epsilon = sum(2**i*val for i, val in enumerate(epsilon[::-1]))
+    gamma = int(''.join(gamma), 2)
+    epsilon = int(''.join(epsilon), 2)
 
     return gamma * epsilon
 
@@ -36,14 +38,10 @@ def day03_part2(inp):
             one_uncommon = sum(1 for num in nums_uncommon if num[i] == '1') < len(nums_uncommon) / 2
             char = '1' if one_uncommon else '0'
             nums_uncommon = {num for num in nums_uncommon if num[i] == char}
-    gamma = nums_common.pop()
-    epsilon = nums_uncommon.pop()
-    assert not nums_common and not nums_uncommon
+    o2 = int(nums_common.pop(), 2)
+    co2 = int(nums_uncommon.pop(), 2)
 
-    gamma = sum(2**i*int(val) for i, val in enumerate(gamma[::-1]))
-    epsilon = sum(2**i*int(val) for i, val in enumerate(epsilon[::-1]))
-
-    return gamma * epsilon
+    return o2 * co2
 
 
 if __name__ == "__main__":
