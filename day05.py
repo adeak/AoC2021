@@ -21,30 +21,27 @@ def day05(inp):
     i_inds_part2 = []
     j_inds_part2 = []
     for i in range(froms.shape[0]):
+        # generate index arrays where ones should be added
         fromnow, tonow = froms[i], tos[i]
-        if froms[i][0] == tos[i][0]:
-            inds = fromnow[1], tonow[1]
-            jvals = np.arange(min(inds), max(inds) + 1)
-            ivals = np.full_like(jvals, fill_value=fromnow[0])
-        elif froms[i][1] == tos[i][1]:
-            inds = fromnow[0], tonow[0]
-            ivals = np.arange(min(inds), max(inds) + 1)
-            jvals = np.full_like(ivals, fill_value=fromnow[1])
+        deltas = tonow - fromnow
+        n_points = abs(deltas).max() + 1
+        ivals = np.linspace(fromnow[0], tonow[0], n_points, dtype=int)
+        jvals = np.linspace(fromnow[1], tonow[1], n_points, dtype=int)
+
+        # special-case part 2 (diagonal lines)
+        if abs(deltas).min() == 0:
+            targets = i_inds, j_inds
         else:
-            # part 2
-            n_points = abs(tonow[0] - fromnow[0]) + 1
-            ivals = np.linspace(fromnow[0], tonow[0], n_points, dtype=int)
-            jvals = np.linspace(fromnow[1], tonow[1], n_points, dtype=int)
-            i_inds_part2.extend(ivals)
-            j_inds_part2.extend(jvals)
-            continue
+            targets = i_inds_part2, j_inds_part2
 
-        i_inds.extend(ivals)
-        j_inds.extend(jvals)
+        targets[0].extend(ivals)  # contains indices along first axis
+        targets[1].extend(jvals)  # contains indices along second axis
 
+    # add 1 to every index
     np.add.at(linecounts, (i_inds, j_inds), 1)
     part1 = (linecounts >= 2).sum()
 
+    # add part 2 contribution separately
     np.add.at(linecounts, (i_inds_part2, j_inds_part2), 1)
     part2 = (linecounts >= 2).sum()
 
