@@ -4,7 +4,7 @@ def day07(inp):
     nums = map(int, inp.strip().split(','))
     poses = np.fromstring(inp, sep=',', dtype=int)
 
-    steps = abs(poses - np.arange(poses.size)[:, None])  # this only works by accident
+    steps = abs(poses - np.arange(poses.min(), poses.max() + 1)[:, None])  # (n_positions, n_crabs)
     part1 = steps.sum(-1).min()
     part2 = (steps*(steps + 1)/2).sum(-1).min().astype(int)
 
