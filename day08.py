@@ -35,8 +35,9 @@ def day08(inp):
         remove_known_digits(patterns, two, three)
         five = patterns.pop()
 
-        proper_digits = [[zero, one, two, three, four, five, six, seven, eight, nine].index(digit) for digit in digits]
-        part2 += int(''.join(f'{digit}' for digit in proper_digits))
+        digit_list = [zero, one, two, three, four, five, six, seven, eight, nine]
+        proper_digits = (digit_list.index(digit) for digit in digits)
+        part2 += int(''.join(map(str, proper_digits)))
 
     return part1, part2
 
