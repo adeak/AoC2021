@@ -8,12 +8,9 @@ def day09(inp):
     padded = np.pad(nums, 1, constant_values=nums.max())
 
     # get 3x3 sliding window to check for minima
-    # can't just compare middle values to windowed.min((-2, -1)) because we need strict lowest
+    # watch out and only check 4-neighbourhood
     windowed = np.lib.stride_tricks.sliding_window_view(padded, (3, 3))
-    windowed_aux = windowed.copy()
-    windowed_aux[..., 1, 1] = nums.max()
-    minima = (windowed[..., 1:2, 1:2] < windowed_aux).all((-2, -1))  # bools with nums.shape
-
+    minima = (windowed[..., 1, 1, None] < windowed[..., [0, 2, 1, 1], [1, 1, 0, 2]]).all(-1)  # bools with nums.shape
     part1 = (nums[minima] + 1).sum()
 
     # part 2: flood fill with 9 as boundaries -> turn into a binary image
