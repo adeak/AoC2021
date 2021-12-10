@@ -1,14 +1,20 @@
 def day10(inp):
     rows = inp.strip().splitlines()
 
-    scores = {
+    error_points = {
         ')': 3,
         ']': 57,
         '}': 1197,
         '>': 25137,
     }
+    completion_points = {
+        ')': 1,
+        ']': 2,
+        '}': 3,
+        '>': 4,
+    }
 
-    pairs = dict(zip('({[<)}]>', ')}]>({[<'))
+    matching_pair = dict(zip('({[<)}]>', ')}]>({[<'))
 
     part1 = 0
     incompletes = []
@@ -16,33 +22,30 @@ def day10(inp):
         stack = []
         for c in row:
             if c in '[({<':
+                # open a level
                 stack.append(c)
-            elif stack[-1] == pairs[c]:
+            elif stack[-1] == matching_pair[c]:
+                # matching pair; forget about it
                 stack.pop()
             else:
-                error_score = scores[c]
+                # invalid closing bracket
+                error_score = error_points[c]
                 part1 += error_score
                 break
         else:
+            # there were no invalid closing brackets
             incompletes.append(stack)
 
-    scores2 = {
-        ')': 1,
-        ']': 2,
-        '}': 3,
-        '>': 4,
-    }
-
-    all_scores = []
+    scores = []
     for row in incompletes:
-        suffix = [pairs[c] for c in row[::-1]]
-        contrib = 0
+        suffix = [matching_pair[c] for c in row[::-1]]
+        score = 0
         for c in suffix:
-            contrib *= 5
-            contrib += scores2[c]
-        all_scores.append(contrib)
+            score *= 5
+            score += completion_points[c]
+        scores.append(score)
 
-    part2 = sorted(all_scores)[len(all_scores)//2]
+    part2 = sorted(scores)[len(scores)//2]
 
     return part1, part2
 
