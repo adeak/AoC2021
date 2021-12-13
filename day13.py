@@ -25,16 +25,18 @@ def day13(inp):
             sheet = sheet.T
 
         assert not sheet[center, :].any()
-        len_1 = center
-        len_2 = sheet.shape[0] - center - 1
-        foldlen = min([len_1, len_2])
-        if len_2 < len_1:
+        len_top = center
+        len_bottom = sheet.shape[0] - center - 1
+        foldlen = min([len_top, len_bottom])
+        slice_top = sheet[center - foldlen : center, :]
+        slice_bottom = sheet[center + 1 : center + foldlen + 1, :]
+        if len_bottom < len_top:
             # keep the "top" part
-            sheet[center-foldlen:center, :] |= sheet[:center:-1, :]
+            slice_top[...] |= slice_bottom[::-1, :]
             sheet = sheet[:center, :]
         else:
             # keep the "bottom" part
-            sheet[center+1+foldlen:center:-1, :] |= sheet[:center, :]
+            slice_bottom[...] |= slice_top[::-1, :]
             sheet = sheet[:center:-1, :]  # keep "up" up
 
         if dir == 'x':
