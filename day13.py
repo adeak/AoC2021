@@ -45,7 +45,7 @@ def day13(inp):
             part1 = sheet.sum()
 
     # part 2
-    print('\n'.join(''.join('*' if c else ' ' for c in row) for row in sheet))
+    print('\n'.join(''.join('*' if c else ' ' for c in row) for row in sheet.repeat(2, axis=1)))
 
     return part1
 
