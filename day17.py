@@ -13,7 +13,11 @@ def day17(inp):
 
     # brute force for now...
     # negative initial vy values necessary for part 2
-    vxs, vys = np.mgrid[1:xto + 1, yfrom:1001]
+    # max y velocity: it will have same speed coming down at x == 0...
+    #     so it mustn't miss the bottom of the box in the next step
+    # and it's not worth bothering with a better lower x limit
+    assert yto < 0
+    vxs, vys = np.mgrid[1:xto + 1, yfrom:abs(yfrom) + 1]
     poses_x = np.zeros_like(vxs)
     poses_y = np.zeros_like(vys)
     max_heights = np.zeros_like(poses_x)
