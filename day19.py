@@ -83,7 +83,13 @@ def transform_other_positions(scanner_data, ref, other):
 
     most_overlaps = 0
     for order in [0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [2, 1, 0], [1, 0, 2]:
+        improper_order = (order < np.roll(order, 1)).sum() > 1
         for sign_flip_trio in np.reshape(np.meshgrid(*[(-1, 1)]*3), (3, -1)).T:
+            improper_flip = sign_flip_trio.prod() == -1
+            if improper_order ^ improper_flip:
+                # improper rotation
+                continue
+
             candidate_poses = other_poses[:, order] * sign_flip_trio
             for ref_pos in ref_poses:
                 for other_pos in candidate_poses:
