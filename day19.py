@@ -28,18 +28,23 @@ def day19(inp):
         ]
         for i in dists
     ])
-    # filter out diagonal
+    # mask out diagonal
     np.einsum('ii->i', overlaps)[:] = 0  # writeable view
-    # filter out where less than 12*11/2 == 66
+    # mask out where less than 12*11/2 == 66
     overlaps[overlaps < 12*11/2] = 0
     # find overlapping indices in the upper triangle
     i, j = overlaps.nonzero()
     overlap_mapping = defaultdict(set)
     for ival, jval in zip(i, j):
         overlap_mapping[ival].add(jval)
+        # this maps scanner to a set of scanner indices
+        # if they have enough distances in common
 
-    # overlap_mapping specifies a graph, but that's not too important
+    # overlap_mapping specifies a graph, but the shape is not too important
     # start from an edge, find an uncharted neighbour, fit their coordinates
+    # just have to make sure we always start from an already mapped neighbour
+    # (i.e. one where we have "absolute" positions with respect to the very first
+    # arbitrary scanner)
 
     n_scanners = len(overlap_mapping)
     current = 0
@@ -87,13 +92,40 @@ def transform_other_positions(scanner_data, dists, ref, other):
     # by selecting those that are involved in matching distances
     matching_dists = np.intersect1d(ref_dists, other_dists)
     aux_poses = []
+    aux_mappings = []
     for poses, dists in zip([ref_poses, other_poses], [ref_dists, other_dists]):
         n = poses.shape[0]
         matches = np.isin(dists, matching_dists)
         inds_keep = np.array(np.triu(np.ones((n, n)), 1).nonzero())[:, matches]
         inds_keep = np.intersect1d(*inds_keep)
-        aux_poses.append(poses[inds_keep, :])
+        new_poses = poses[inds_keep, :]
+        aux_poses.append(new_poses)
+
+        # find distances each position is involved in
+        # build an index -> set_of_involved_distances mapping
+        tmp_dists = pdist(new_poses, metric='cityblock')
+        n = new_poses.shape[0]
+        inds = np.array(np.triu(np.ones((n, n)), 1).nonzero())
+        aux_mapping = defaultdict(set)
+        for ind, (i, j) in enumerate(zip(*inds)):
+            aux_mapping[i].add(tmp_dists[ind])
+            aux_mapping[j].add(tmp_dists[ind])
+        aux_mappings.append(aux_mapping)
     ref_poses, other_poses = aux_poses
+    ref_distmap, other_distmap = aux_mappings
+
+    # build a mapping based on presence in a pair with the same distance
+    # because we only need to try shifting everything when we have a matching pair
+    dist_mapping = {
+        refkey: [
+            otherkey
+            for otherkey, otherval in other_distmap.items()
+            if refval & otherval
+        ]
+        for refkey, refval in ref_distmap.items()
+    }
+    # dist mapping maps index in ref_poses to indices in other_poses
+    # if both indices are part of a pair with the same distance
 
     most_overlaps = 0
     for order in [0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [2, 1, 0], [1, 0, 2]:
@@ -105,8 +137,8 @@ def transform_other_positions(scanner_data, dists, ref, other):
                 continue
 
             candidate_poses = other_poses[:, order] * sign_flip_trio
-            for ref_pos in ref_poses:
-                for other_pos in candidate_poses:
+            for i, ref_pos in enumerate(ref_poses):
+                for other_pos in candidate_poses[dist_mapping[i], :]:
                     shifteds = candidate_poses + (ref_pos - other_pos)
                     overlaps = len(set(map(tuple, ref_poses)) & set(map(tuple, shifteds)))
                     if overlaps > most_overlaps:
