@@ -67,7 +67,7 @@ def day19(inp):
     origins = {origin: np.array([0, 0, 0])}
     beacon_positions = set(map(tuple, scanner_data[origin]))
     for reference, other in mapping_order:
-        origin_shift = transform_other_positions(scanner_data, reference, other)
+        origin_shift = transform_other_positions(scanner_data, dists, reference, other)
         origins[other] = origins[reference] + origin_shift
         beacon_positions |= set(map(tuple, scanner_data[other] + origins[other]))
 
@@ -77,9 +77,23 @@ def day19(inp):
     return part1, part2
 
 
-def transform_other_positions(scanner_data, ref, other):
+def transform_other_positions(scanner_data, dists, ref, other):
     ref_poses = scanner_data[ref]
     other_poses = scanner_data[other]
+    ref_dists = dists[ref]
+    other_dists = dists[other]
+
+    # reduce positions to those that might overlap
+    # by selecting those that are involved in matching distances
+    matching_dists = np.intersect1d(ref_dists, other_dists)
+    aux_poses = []
+    for poses, dists in zip([ref_poses, other_poses], [ref_dists, other_dists]):
+        n = poses.shape[0]
+        matches = np.isin(dists, matching_dists)
+        inds_keep = np.array(np.triu(np.ones((n, n)), 1).nonzero())[:, matches]
+        inds_keep = np.intersect1d(*inds_keep)
+        aux_poses.append(poses[inds_keep, :])
+    ref_poses, other_poses = aux_poses
 
     most_overlaps = 0
     for order in [0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [2, 1, 0], [1, 0, 2]:
@@ -98,7 +112,7 @@ def transform_other_positions(scanner_data, ref, other):
                     if overlaps > most_overlaps:
                         most_overlaps = overlaps
                         origin_shift = ref_pos - other_pos
-                        best_candidate_poses = candidate_poses
+                        best_candidate_poses = scanner_data[other][:, order] * sign_flip_trio
     scanner_data[other][...] = best_candidate_poses
 
     return origin_shift
