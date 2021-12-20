@@ -140,7 +140,7 @@ def transform_other_positions(scanner_data, dists, ref, other):
             for i, ref_pos in enumerate(ref_poses):
                 for other_pos in candidate_poses[dist_mapping[i], :]:
                     shifteds = candidate_poses + (ref_pos - other_pos)
-                    overlaps = len(set(map(tuple, ref_poses)) & set(map(tuple, shifteds)))
+                    overlaps = (ref_poses[:, None, :] == shifteds).all(-1).sum()
                     if overlaps > most_overlaps:
                         most_overlaps = overlaps
                         origin_shift = ref_pos - other_pos
