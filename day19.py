@@ -41,31 +41,27 @@ def day19(inp):
         # if they have enough distances in common
 
     # overlap_mapping specifies a graph, but the shape is not too important
+    #
     # start from an edge, find an uncharted neighbour, fit their coordinates
     # just have to make sure we always start from an already mapped neighbour
     # (i.e. one where we have "absolute" positions with respect to the very first
     # arbitrary scanner)
+    #
+    # just BFS from any scanner
 
-    n_scanners = len(overlap_mapping)
-    current = 0
-    mapped = {current}
-    exhausted = set()
-    unmapped = set(range(1, n_scanners))
+    seen = set()
+    edges = {0}
     mapping_order = []
-    while unmapped:
-        # find next edge to map out
-        candidates = overlap_mapping[current] - (mapped | exhausted)
-        if not candidates:
-            # we've run out of neighbours for `current`
-            del overlap_mapping[current]
-            exhausted.add(current)
-            mapped.remove(current)
-            current = next(iter(mapped))
-            continue
-        neighbour = candidates.pop()
-        mapped.add(neighbour)
-        unmapped.remove(neighbour)
-        mapping_order.append((current, neighbour))
+    while edges:
+        current = edges.pop()
+        seen.add(current)
+        next_edges = {
+            neighbour
+            for neighbour in overlap_mapping[current]
+            if neighbour not in seen
+        }
+        mapping_order.extend((current, next_edge) for next_edge in next_edges)
+        edges |= next_edges
 
     # now we just go pair by pair and match the overlaps...
     origin = mapping_order[0][0]
