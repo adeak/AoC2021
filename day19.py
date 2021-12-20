@@ -97,7 +97,7 @@ def transform_other_positions(scanner_data, dists, ref, other):
         n = poses.shape[0]
         matches = np.isin(dists, matching_dists)
         inds_keep = np.array(np.triu(np.ones((n, n)), 1).nonzero())[:, matches]
-        inds_keep = np.intersect1d(*inds_keep)
+        inds_keep = np.union1d(*inds_keep)
         new_poses = poses[inds_keep, :]
         aux_poses.append(new_poses)
 
@@ -124,10 +124,9 @@ def transform_other_positions(scanner_data, dists, ref, other):
         ]
         for refkey, refval in ref_distmap.items()
     }
-    # dist mapping maps index in ref_poses to indices in other_poses
+    # dist_mapping maps index in ref_poses to indices in other_poses
     # if both indices are part of a pair with the same distance
 
-    most_overlaps = 0
     for order in [0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [2, 1, 0], [1, 0, 2]:
         improper_order = (order < np.roll(order, 1)).sum() > 1
         for sign_flip_trio in np.reshape(np.meshgrid(*[(-1, 1)]*3), (3, -1)).T:
@@ -141,13 +140,12 @@ def transform_other_positions(scanner_data, dists, ref, other):
                 for other_pos in candidate_poses[dist_mapping[i], :]:
                     shifteds = candidate_poses + (ref_pos - other_pos)
                     overlaps = (ref_poses[:, None, :] == shifteds).all(-1).sum()
-                    if overlaps > most_overlaps:
-                        most_overlaps = overlaps
+                    if overlaps >= 12:
+                        # we're done for this pair of scanners
                         origin_shift = ref_pos - other_pos
-                        best_candidate_poses = scanner_data[other][:, order] * sign_flip_trio
-    scanner_data[other][...] = best_candidate_poses
-
-    return origin_shift
+                        matched_poses = scanner_data[other][:, order] * sign_flip_trio
+                        scanner_data[other][...] = matched_poses
+                        return origin_shift
 
 
 if __name__ == "__main__":
