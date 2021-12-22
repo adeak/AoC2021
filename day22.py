@@ -1,5 +1,4 @@
-from itertools import cycle, count, islice, product
-from collections import Counter, defaultdict
+from itertools import product
 import re
 
 import numpy as np
@@ -42,36 +41,111 @@ def day22(inp):
         voxels[ranges] = state
     part1 = voxels.sum()
 
-    # assume that outliers only overlap a pair at a time...
-    on_count = 0 if not outlier_states[0] else outlier_coords[0, ...].ptp(-1).prod()
-    for this_ind in range(1, outlier_states.size):
-        this_bounds = outlier_coords[this_ind, ...]
-        this_state = outlier_states[this_ind]
-        overlap_count = 0
-        for that_ind in range(this_ind - 1, -1, -1):
-            that_state = outlier_states[that_ind]
+    on_count = part1
+    boxes = []  # bounds for boxes that should be turned on
+    for state, bounds in zip(outlier_states, outlier_coords):
+        bounds = tuple(map(tuple, bounds))
+        to_add = {bounds}
+        while to_add:
+            # find a new (sub)box to add to the "known disjoint" ones
+            add_now = to_add.pop()
+            #print(f'trying to add {add_now} {state}...')
+            # loop over each "known disjoint" lit box and find overlaps
+            next_boxes = []
+            for other_box in boxes:
+                #print(f'comparing with {other_box}...')
+                # other_box is known disjoint lit among boxes
+                has_overlap = all(
+                    x1 <= y1 <= x2 or x1 <= y2 <= x2
+                    for (x1, x2), (y1, y2) in zip(add_now, other_box)
+                )
+                if not has_overlap:
+                    #print('no overlap...')
+                    # nothing to do for now
+                    next_boxes.append(other_box)
+                    continue
+                # make sure that boxes don't engulf each other
+                assert all(
+                    x1 <= y1 <= x2 <= y2 or y1 <= x1 <= y2 <= x2
+                    for (x1, x2), (y1, y2) in zip(add_now, other_box)
+                ), (add_now, other_box)
+                # otherwise we must split add_now and maybe other_box into subboxes
+                split_coords = [
+                    (
+                        (min(x1, y1), max(x1, y1) - 1),  # lower non-overlapping section
+                        (max(x1, y1), min(x2, y2)),      # overlapping section
+                        (min(x2, y2) + 1, max(x2, y2)),  # upper overlapping section
+                    )
+                    for (x1, x2), (y1, y2) in zip(add_now, other_box)
+                ]
+                # sections = [
+                #     (
+                #         max(x1, y1) - min(x1, y1),  # lower non-overlapping size
+                #         min(x2, y2) - max(x1, y1) + 1,  # overlapping size
+                #         max(x2, y2) - min(x2, y2),  # upper non-overlapping size
+                #     for (x1, x2), (y1, y2) in zip(bounds, other_box):
+                # ]
 
-            # check if there's overlap
-            that_bounds = outlier_coords[that_ind, ...]
-            overlap_sizes = [
-                min(x2, y2) - max(x1, y1) + 1
-                for (x1, x2), (y1, y2) in zip(this_bounds, that_bounds)
-            ]
-            has_overlap = all(overlap_size > 0 for overlap_size in overlap_sizes)
-            if not has_overlap:
-                continue
+                # if state is on, we already have the overlap turned on
+                #    so we only have to add the remaining subboxes of add_now to the todo list
+                #    and add back the unsplit other_box to the boxes
+                # if state is off, we have to add back the non-overlapping old bits
+                # to next_boxes, and non-overlapping bits of add_now to the todo list
 
-            # else: overlap might still be a no-op
-            if that_state != this_state:
-                # then we're flipping the overlap anyway
-                continue
+                if state:
+                    # the "other" box is left invariant, no need to harm it
+                    # just add non-overlapping new bits later
+                    next_boxes.append(other_box)
 
-            # else: we're not changing voxels in the overlap
-            overlap_count += np.prod(overlap_sizes)
+                for ijk in product(range(3), repeat=3):
+                    # we're generating 27 potential subboxes
+                    # but we only have at most 15 actual subboxes... so filter these out
+                    subbox = tuple(
+                        split_coord[index]
+                        for index, split_coord in zip(ijk, split_coords)
+                    )
 
-        # flip the state of this region minus overlap_count
-        on_count += (this_bounds[:, 1] - this_bounds[:, 0] + 1).prod() - overlap_count
-    part2 = part1 + on_count
+                    if ijk == (1, 1, 1):
+                        # this is the overlapping box
+                        if not state:
+                            # turn or leave it off
+                            # don't add the overlap back
+                            continue
+                        # else keep the lit overlapping box
+                        next_boxes.append(subbox)
+                    else:
+                        # always add non-overlapping new bits
+                        part_of_new = all(
+                            x1 <= y1 <= y2 <= x2
+                            for (x1, x2), (y1, y2) in zip(add_now, subbox)
+                        )
+                        part_of_old = all(
+                            x1 <= y1 <= y2 <= x2
+                            for (x1, x2), (y1, y2) in zip(other_box, subbox)
+                        )
+                        if part_of_new:
+                            to_add.add(subbox)
+                        elif part_of_old:
+                            # non-overlapping old lit part; only add if we're turning off
+                            if not state:
+                                next_boxes.append(subbox)
+                break
+            else:
+                # there was no overlap with any of the known disjoint lit boxes
+                # add this box if it's lit
+                if state:
+                    next_boxes.append(add_now)
+            boxes = next_boxes
+
+    # now everything in `boxes` is a disjoint lit box
+    assert all(bound[0] < bound[1] for bounds in boxes for bound in bounds)
+    part2 = on_count + sum(
+        np.prod([
+            x2 - x1 + 1
+            for x1, x2 in box
+        ])
+        for box in boxes
+    )
 
     return part1, part2
 
@@ -79,6 +153,7 @@ def day22(inp):
 
 if __name__ == "__main__":
     testinp = open('day22.testinp').read()
-    print(*day22(testinp))
+    testinp2 = open('day22.testinp2').read()
+    print(day22(testinp)[0], day22(testinp2)[1])
     inp = open('day22.inp').read()
     print(*day22(inp))
