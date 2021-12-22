@@ -56,28 +56,33 @@ def day22(inp):
                 #print(f'comparing with {other_box}...')
                 # other_box is known disjoint lit among boxes
                 has_overlap = all(
-                    x1 <= y1 <= x2 or x1 <= y2 <= x2
+                    x1 <= y1 <= x2
+                        or x1 <= y2 <= x2
+                        or y1 <= x1 <= x2 <= y2
                     for (x1, x2), (y1, y2) in zip(add_now, other_box)
                 )
                 if not has_overlap:
                     #print('no overlap...')
-                    # nothing to do for now
+                    # nothing to do for now, grab the next known disjoint lit box, if any
                     next_boxes.append(other_box)
                     continue
-                # make sure that boxes don't engulf each other
-                assert all(
-                    x1 <= y1 <= x2 <= y2 or y1 <= x1 <= y2 <= x2
-                    for (x1, x2), (y1, y2) in zip(add_now, other_box)
-                ), (add_now, other_box)
+
                 # otherwise we must split add_now and maybe other_box into subboxes
+                # to cover all possible overlap cases, handle indices on an equal footing
+                sorted_coords = [
+                    sorted(x1x2 + y1y2)
+                    for x1x2, y1y2 in zip(add_now, other_box)
+                ]
                 split_coords = [
                     (
-                        (min(x1, y1), max(x1, y1) - 1),  # lower non-overlapping section
-                        (max(x1, y1), min(x2, y2)),      # overlapping section
-                        (min(x2, y2) + 1, max(x2, y2)),  # upper overlapping section
+                        (z1, z2 - 1), # lower non-overlapping section
+                        (z2, z3),  # overlapping section
+                        (z3 + 1, z4),  # upper overlapping section
                     )
-                    for (x1, x2), (y1, y2) in zip(add_now, other_box)
+                    for z1, z2, z3, z4 in sorted_coords
                 ]
+                #print(split_coords)
+                #print(split_coords);return
                 # sections = [
                 #     (
                 #         max(x1, y1) - min(x1, y1),  # lower non-overlapping size
@@ -92,43 +97,51 @@ def day22(inp):
                 # if state is off, we have to add back the non-overlapping old bits
                 # to next_boxes, and non-overlapping bits of add_now to the todo list
 
-                if state:
-                    # the "other" box is left invariant, no need to harm it
-                    # just add non-overlapping new bits later
-                    next_boxes.append(other_box)
-
-                for ijk in product(range(3), repeat=3):
+                #new_count = old_count = both_count = none_count = 0  # DEBUG TODO REMOVE
+                for subbox in product(*split_coords):
                     # we're generating 27 potential subboxes
-                    # but we only have at most 15 actual subboxes... so filter these out
-                    subbox = tuple(
-                        split_coord[index]
-                        for index, split_coord in zip(ijk, split_coords)
-                    )
+                    # but we only have at most 15(?) actual subboxes... so filter these out
 
-                    if ijk == (1, 1, 1):
-                        # this is the overlapping box
-                        if not state:
-                            # turn or leave it off
-                            # don't add the overlap back
-                            continue
-                        # else keep the lit overlapping box
+                    # check if this subbox is part of the old big one and the new big one
+                    part_of_old = all(
+                        x1 <= y1 <= y2 <= x2
+                        for (x1, x2), (y1, y2) in zip(other_box, subbox)
+                    )
+                    part_of_new = all(
+                        x1 <= y1 <= y2 <= x2
+                        for (x1, x2), (y1, y2) in zip(add_now, subbox)
+                    )
+                    assert not any(
+                        x1 < y1 <= x2 < y2 or y1 < x1 <= y2 < x2
+                        for (x1, x2), (y1, y2) in zip(other_box, subbox)
+                    )
+                    assert not any(
+                        x1 < y1 <= x2 < y2 or y1 < x1 <= y2 < x2
+                        for (x1, x2), (y1, y2) in zip(add_now, subbox)
+                    )
+                    # if part_of_old:
+                    #     old_count += 1
+                    # if part_of_new:
+                    #     new_count += 1
+                    # if part_of_old and part_of_new:
+                    #     both_count += 1
+                    # if not part_of_old and not part_of_new:
+                    #     none_count += 1
+                    if part_of_old and not part_of_new:
+                        # this part was lit and we're not turning it off
+                        # because it doesn't overlap; keep it
                         next_boxes.append(subbox)
-                    else:
-                        # always add non-overlapping new bits
-                        part_of_new = all(
-                            x1 <= y1 <= y2 <= x2
-                            for (x1, x2), (y1, y2) in zip(add_now, subbox)
-                        )
-                        part_of_old = all(
-                            x1 <= y1 <= y2 <= x2
-                            for (x1, x2), (y1, y2) in zip(other_box, subbox)
-                        )
-                        if part_of_new:
-                            to_add.add(subbox)
-                        elif part_of_old:
-                            # non-overlapping old lit part; only add if we're turning off
-                            if not state:
-                                next_boxes.append(subbox)
+                    elif part_of_old and state:
+                        # this part was lit, and it overlaps with "on" new block
+                        # but we're going to remove it and let it be replaced with
+                        # this new block after the end of this big loop...
+                        pass
+                    if part_of_new:
+                        # always keep each new bit until there's no overlap with anything
+                        to_add.add(subbox)
+                # print(other_box)
+                # print(add_now)
+                # print(old_count, new_count, both_count, none_count, old_count+new_count-both_count+none_count); return
                 break
             else:
                 # there was no overlap with any of the known disjoint lit boxes
@@ -137,15 +150,18 @@ def day22(inp):
                     next_boxes.append(add_now)
             boxes = next_boxes
 
-    # now everything in `boxes` is a disjoint lit box
+    # now everything in `boxes` are disjoint lit boxes
     assert all(bound[0] < bound[1] for bounds in boxes for bound in bounds)
-    part2 = on_count + sum(
-        np.prod([
-            x2 - x1 + 1
-            for x1, x2 in box
-        ])
-        for box in boxes
+    assert all(
+        not all(
+            x1 <= y1 <= x2 or x1 <= y2 <= x2
+            for (x1, x2), (y1, y2) in zip(box, box2)
+        )
+        for i, box in enumerate(boxes)
+        for box2 in boxes[i+1:]
     )
+    boxes = np.array(boxes)
+    part2 = on_count + (boxes[..., 1] - boxes[..., 0] + 1).prod(-1).sum()
 
     return part1, part2
 
@@ -154,6 +170,8 @@ def day22(inp):
 if __name__ == "__main__":
     testinp = open('day22.testinp').read()
     testinp2 = open('day22.testinp2').read()
-    print(day22(testinp)[0], day22(testinp2)[1])
+    #print(day22(testinp)[0], day22(testinp2)[1])
+    print(*day22(testinp2))
     inp = open('day22.inp').read()
     print(*day22(inp))
+    # 66917702494139 too low
