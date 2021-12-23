@@ -4,8 +4,6 @@ import re
 import numpy as np
 
 def day22(inp):
-    part1 = part2 = None
-
     all_coords = []
     all_states = []
     for row in inp.splitlines():
@@ -42,18 +40,16 @@ def day22(inp):
     part1 = voxels.sum()
 
     on_count = part1
-    boxes = []  # bounds for boxes that should be turned on
+    boxes = []  # bounds for disjoint boxes that should be turned on
     for state, bounds in zip(outlier_states, outlier_coords):
         bounds = tuple(map(tuple, bounds))
         to_add = {bounds}
         while to_add:
             # find a new (sub)box to add to the "known disjoint" ones
             add_now = to_add.pop()
-            #print(f'trying to add {add_now} {state}...')
             # loop over each "known disjoint" lit box and find overlaps
             next_boxes = []
             for other_box in boxes:
-                #print(f'comparing with {other_box}...')
                 # other_box is known disjoint lit among boxes
                 has_overlap = all(
                     x1 <= y1 <= x2
@@ -62,7 +58,6 @@ def day22(inp):
                     for (x1, x2), (y1, y2) in zip(add_now, other_box)
                 )
                 if not has_overlap:
-                    #print('no overlap...')
                     # nothing to do for now, grab the next known disjoint lit box, if any
                     next_boxes.append(other_box)
                     continue
@@ -81,15 +76,6 @@ def day22(inp):
                     )
                     for z1, z2, z3, z4 in sorted_coords
                 ]
-                #print(split_coords)
-                #print(split_coords);return
-                # sections = [
-                #     (
-                #         max(x1, y1) - min(x1, y1),  # lower non-overlapping size
-                #         min(x2, y2) - max(x1, y1) + 1,  # overlapping size
-                #         max(x2, y2) - min(x2, y2),  # upper non-overlapping size
-                #     for (x1, x2), (y1, y2) in zip(bounds, other_box):
-                # ]
 
                 # if state is on, we already have the overlap turned on
                 #    so we only have to add the remaining subboxes of add_now to the todo list
@@ -97,7 +83,6 @@ def day22(inp):
                 # if state is off, we have to add back the non-overlapping old bits
                 # to next_boxes, and non-overlapping bits of add_now to the todo list
 
-                #new_count = old_count = both_count = none_count = 0  # DEBUG TODO REMOVE
                 for subbox in product(*split_coords):
                     # we're generating 27 potential subboxes
                     # but we only have at most 15(?) actual subboxes... so filter these out
@@ -119,14 +104,6 @@ def day22(inp):
                         x1 < y1 <= x2 < y2 or y1 < x1 <= y2 < x2
                         for (x1, x2), (y1, y2) in zip(add_now, subbox)
                     )
-                    # if part_of_old:
-                    #     old_count += 1
-                    # if part_of_new:
-                    #     new_count += 1
-                    # if part_of_old and part_of_new:
-                    #     both_count += 1
-                    # if not part_of_old and not part_of_new:
-                    #     none_count += 1
                     if part_of_old and not part_of_new:
                         # this part was lit and we're not turning it off
                         # because it doesn't overlap; keep it
@@ -139,15 +116,13 @@ def day22(inp):
                     if part_of_new:
                         # always keep each new bit until there's no overlap with anything
                         to_add.add(subbox)
-                # print(other_box)
-                # print(add_now)
-                # print(old_count, new_count, both_count, none_count, old_count+new_count-both_count+none_count); return
                 break
             else:
                 # there was no overlap with any of the known disjoint lit boxes
                 # add this box if it's lit
                 if state:
                     next_boxes.append(add_now)
+                # otherwise this was a no-op
             boxes = next_boxes
 
     # now everything in `boxes` are disjoint lit boxes
@@ -170,8 +145,6 @@ def day22(inp):
 if __name__ == "__main__":
     testinp = open('day22.testinp').read()
     testinp2 = open('day22.testinp2').read()
-    #print(day22(testinp)[0], day22(testinp2)[1])
     print(*day22(testinp2))
     inp = open('day22.inp').read()
     print(*day22(inp))
-    # 66917702494139 too low
