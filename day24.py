@@ -25,7 +25,6 @@ def day24(inp):
 
         if len(set(arg_vals)) > 1:
             all_constants.append(arg_vals)
-    print(all_constants)
 
     # consts[0]: [ 1,  1,  1,  26,  1, 26,  1,  1,  1, 26,  26,  26, 26, 26]
     # consts[1]: [13, 11, 15, -11, 14,  0, 12, 12, 14, -6, -10, -12, -3, -5]
@@ -104,81 +103,56 @@ def day24(inp):
     #     if more than 7: need to backtrack from the given digit
     #     stop with first valid number
 
-    def decrement_at(num, index):
-        """Decrement number at digit "index" skipping zeros, set remaining digits to 9."""
+    def decrement_at(num, index, reversed=False):
+        """
+        Step number at digit "index" skipping zeros, set remaining digits.
+
+        If reversed is False, decrease the digit at "index" and set trailing
+        digits to 9. Otherwise increase the digit and set trailing digits to 1.
+
+        """
         digits = list(str(num))
         digit_now = int(digits[index])
-        if digit_now > 1:
-            digits[index] = str(digit_now - 1)
-        else:
-            return decrement_at(num, index - 1)
-        # set remaining digits to 9
-        digits[index + 1:] = '9'*(13 - index)
+        delta = 1 if reversed else -1
+        new_digit = digit_now + delta
+        if new_digit % 10 == 0:
+            return decrement_at(num, index - 1, reversed)
+        digits[index] = str(new_digit)
+        # set remaining digits to 1 or 9
+        filler_digit = '1' if reversed else '9'
+        digits[index + 1:] = filler_digit*(13 - index)
         return int(''.join(digits))
 
-    num = int('9'*14)
-    while True:
-        digits = map(int, str(num))
-        z = 0
-        leftshift_count = 0
-        # all_constants is [first_constants, second_constants, third_constants]
-        # (3-length list of 14-length lists)
-        for i, (digit, consts) in enumerate(zip(digits, zip(*all_constants))):
-            x = (z % 26 + consts[1])
-            z //= consts[0]  # either 1 (no-op) or 26
-            if digit != x:
-                leftshift_count += 1
-                if leftshift_count == 8:
-                    # there's no way to shift back to 0 later
+    parts = []
+    for initial_digit, reversed in zip(['9', '1'], [False, True]):
+        num = int(initial_digit * 14)
+        while True:
+            digits = map(int, str(num))
+            z = 0
+            leftshift_count = 0
+            # all_constants is [first_constants, second_constants, third_constants]
+            # (3-length list of 14-length lists)
+            for i, (digit, consts) in enumerate(zip(digits, zip(*all_constants))):
+                x = (z % 26 + consts[1])
+                z //= consts[0]  # either 1 (no-op) or 26
+                if digit != x:
+                    leftshift_count += 1
+                    if leftshift_count == 8:
+                        # there's no way to shift back to 0 later
+                        break
+                    z = z*26 + digit + consts[2]
+            else:
+                if z == 0:
+                    # we're done
+                    parts.append(num)
                     break
-                z = z*26 + digit + consts[2]
-        else:
-            if z == 0:
-                # we're done
-                part1 = num
-                break
 
-        # decrease and backtrack:
-        #     decrease the ith digit in num
-        #     set digits from i+1 to 14 to 9
-        num = decrement_at(num, i)
+            # decrease and backtrack:
+            #     decrease the ith digit in num
+            #     set digits from i+1 to 14 to 9
+            num = decrement_at(num, i, reversed)
 
-    # part 2: same just inreasing
-    def increment_at(num, index):
-        """Increment number at digit "index" skipping zeros, set remaining digits to 1."""
-        digits = list(str(num))
-        digit_now = int(digits[index])
-        if digit_now < 9:
-            digits[index] = str(digit_now + 1)
-        else:
-            return increment_at(num, index - 1)
-        # set remaining digits to 1
-        digits[index + 1:] = '1'*(13 - index)
-        return int(''.join(digits))
-    num = int('1'*14)
-    while True:
-        digits = map(int, str(num))
-        z = 0
-        leftshift_count = 0
-        # all_constants is [first_constants, second_constants, third_constants]
-        # (3-length list of 14-length lists)
-        for i, (digit, consts) in enumerate(zip(digits, zip(*all_constants))):
-            x = (z % 26 + consts[1])
-            z //= consts[0]  # either 1 (no-op) or 26
-            if digit != x:
-                leftshift_count += 1
-                if leftshift_count == 8:
-                    # there's no way to shift back to 0
-                    break
-                z = z*26 + digit + consts[2]
-        else:
-            if z == 0:
-                # we're done
-                part2 = num
-                break
-
-        # increase and backtrack:
-        num = increment_at(num, i)
+    part1, part2 = parts
 
     return part1, part2
     
