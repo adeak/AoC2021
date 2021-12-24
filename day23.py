@@ -1,8 +1,16 @@
 from collections import defaultdict
+from operator import itemgetter
 
-def day23(inp):
-    part1 = part2 = None
+def day23(inp, part2=False):
     type_costs = dict(zip('ABCD', [1, 10, 100, 1000]))
+
+    if part2:
+        add_rows = [
+            '  #D#C#B#A#  ',
+            '  #D#B#A#C#  ',
+        ]
+        inp = inp.splitlines()
+        inp = '\n'.join(inp[:3] + add_rows + inp[3:])
 
     # read in map
     tiles = set()  # (i, j) indices
@@ -38,106 +46,95 @@ def day23(inp):
     # remove forbidden tiles
     tiles -= {(1, y) for y in [3, 5, 7, 9]}
 
-    # explore the state space
-    # a single state is a dict of (i, j) -> type items, with length 8
-    # there are 190466640 distinct states, but most of them can't be explored cheaply
-    # (even fewer without forbidden tiles)
-    all_costs = {tuple(sorted(poses.items())): 0}  # tuple of dict items -> cost
+    # try A* searching for the cheapest path
+    # a single state is a dict of (i, j) -> type items, with length 8 (or 16)
+    max_depth = max(tiles)[0]
     target = {
-        (2, 3): 'A',
-        (3, 3): 'A',
-        (2, 5): 'B',
-        (3, 5): 'B',
-        (2, 7): 'C',
-        (3, 7): 'C',
-        (2, 9): 'D',
-        (3, 9): 'D',
+        (depth, 2*i + 1): kind
+        for i, kind in enumerate('ABCD', 1)
+        for depth in range(2, max_depth + 1)
     }
     rooms = {kind: index[1] for index, kind in target.items()}
-    edges = {tuple(sorted(poses.items()))}
 
-    # upper bound for cost: move everyone to a further corner then to the bottom of their rooms
-    corners = [(1, 1), (1, 11)]
-    cost_bound = 0
-    for pos, kind in poses.items():
-        goal = (3, rooms[kind])
-        potential_costs = [
-            type_costs[kind]*(steps[pos, corner] + steps[corner, goal])
-            for corner in corners
-        ]
-        cost_bound += max(potential_costs)
-
-    best_score = float('inf')
+    all_costs = {tuple(sorted(poses.items())): 0}  # tuple of dict items -> cost mapping
+    start = tuple(sorted(poses.items()))
+    initial_cost_bound = cost_lower_bound(start, target, type_costs, steps, rooms)
+    #edges = {(initial_cost_bound, start)}  # set of (cost lower bound, edge state) tuples
+    #edges = [(initial_cost_bound, start)]  # heapq of (cost lower bound, edge state) tuples
+    edges = {start: initial_cost_bound}  # dict of positions -> cost estimate mapping
     while edges:
-        next_edges = set()
-        for edge in edges:
-            poses = dict(edge)
-            cost_now = all_costs[edge]
-            # explore all states from here
-            empty_tiles = tiles - poses.keys()
-            for pos, kind in poses.items():
-                # if this is in the right place, don't touch it
-                if pos[0] > 1 and pos[1] == rooms[kind]:
-                    if pos[0] == 3:
-                        # we're at the bottom
-                        ## DEBUG TODO REMOVE: plot move
-                        #print(f'Skipping: {pos} {kind} in')
-                        #print_poses(poses, tiles)
+        # take the cheapest step
+        edge, cost_estimate = min(edges.items(), key=itemgetter(1))
+        del edges[edge]
+        cost_now = all_costs[edge]  # actual cost of reaching "edge"
+        #print(f'Cost now: {cost_now}, {cost_estimate}...')
+        edge_dict = dict(edge)
+        poses = dict(edge).keys()
+
+        #print_poses(edge_dict, tiles)
+
+        # explore new states accessible from this step
+        empty_tiles = tiles - poses
+        for pos, kind in edge:
+            # consider moving this animal
+
+            # if this is in the right place, don't touch it
+            if pos[0] > 1 and pos[1] == rooms[kind]:
+                if pos[0] == max_depth:
+                    # we're at the bottom
+                    continue
+                if all(edge_dict.get((i, pos[1]), '') == kind for i in range(pos[0] + 1, max_depth + 1)):
+                    # we're on top of the right kind(s); also done
+                    continue
+            for next_pos in empty_tiles:
+                if blockers[pos, next_pos] & poses:
+                    # we can't move there due to blocker
+                    continue
+
+                # animals in hallways can only move to their destination
+                if pos[0] == 1:
+                    if next_pos[0] == 1 or next_pos[1] != rooms[kind]:
+                        # this is not our room
                         continue
-                    if poses.get((3, pos[1]), '') == kind:
-                        # we're on top of the right kind; also done
-                        ## DEBUG TODO REMOVE: plot move
-                        #print(f'Skipping: {pos} {kind} in')
-                        #print_poses(poses, tiles)
+                    if any(edge_dict.get((i, next_pos[1]), kind) != kind for i in range(next_pos[0] + 1, max_depth + 1)):
+                        # there are impostors inside
                         continue
-                for next_pos in empty_tiles:
-                    # animals in hallways can only move to their destination
-                    if pos[0] == 1:
-                        if next_pos[0] == 1 or next_pos[1] != rooms[kind]:
-                            # this is not our room
-                            continue
-                        other_index = (3 if next_pos[0] == 2 else 2, next_pos[1])
-                        if poses.get(other_index, kind) != kind:
+                elif next_pos[0] != 1:
+                    # we also have to enter the hallway when moving from one room to another
+                    if next_pos[1] != pos[1] and next_pos[0] < max_depth:
+                        if any(edge_dict.get((i, next_pos[1]), kind) != kind for i in range(next_pos[0] + 1, max_depth + 1)):
                             # there are impostors inside
                             continue
-                    elif next_pos[0] != 1:
-                        # we also have to enter the hallway when moving from one room to another
-                        if next_pos[1] != pos[1] and next_pos[0] == 2:
-                            other_index = (3, next_pos[1])
-                            if poses.get(other_index, kind) != kind:
-                                # there are impostors inside
-                                continue
-                    if blockers[pos, next_pos] & poses.keys():
-                        # we can't move there due to blocker
-                        continue
-                    cost = cost_now + type_costs[kind]*steps[pos, next_pos]
-                    next_poses = {
-                        tmp_pos if tmp_pos != pos else next_pos: tmp_type
-                        for tmp_pos, tmp_type in poses.items()
-                    }
-                    hashable_next_poses = tuple(sorted(next_poses.items()))
-                    old_cost = all_costs.get(hashable_next_poses, float('inf'))
-                    if cost >= old_cost:
-                        # we were here before and now it's not better at all
-                        continue
-                    if cost >= cost_bound:
-                        # this has to be a bad path
-                        continue
-                    
-                    ## DEBUG TODO REMOVE: plot move
-                    #print_poses(poses, tiles)
-                    #print(poses(next_poses, tiles)
-                    #print()
-                    #input()
+                
+                # _now_ we have a potential move from pos to next_pos
+                new_cost = cost_now + type_costs[kind]*steps[pos, next_pos]
+                next_poses = {
+                    tmp_pos if tmp_pos != pos else next_pos: tmp_type
+                    for tmp_pos, tmp_type in edge
+                }
+                hashable_next_poses = tuple(sorted(next_poses.items()))
+                old_cost = all_costs.get(hashable_next_poses, float('inf'))
+                if new_cost >= old_cost:
+                    # we were here before and now it's not better at all
+                    continue
+                # TODO: revisit or remove this:
+                #if new_cost >= cost_bound:
+                #    # this has to be a bad path
+                #    continue
 
-                    next_edges.add(hashable_next_poses)
-                    all_costs[hashable_next_poses] = cost
-                    #print(next_poses, target)
-                    if next_poses == target:
-                        cost_bound = cost
-                        print(f'Next best cost for target: {cost}')
-        edges = next_edges
+                ## DEBUG TODO REMOVE: plot move
+                #print_poses(poses, tiles)
+                #print_poses(next_poses, tiles)
+                #print()
+                #input()
 
+                # _now_ it's worth moving from pos to next_pos
+                if next_poses == target:
+                    #print(f'Best cost for target: {cost}')
+                    return new_cost
+                all_costs[hashable_next_poses] = new_cost
+                cost_estimate = new_cost + cost_lower_bound(next_poses, target, type_costs, steps, rooms)
+                edges[hashable_next_poses] = cost_estimate
         # # heuristic: prune 10% costliest edges...
         # # (20% works for example, not for real data)
         # costs = sorted((all_costs[edge], edge) for edge in edges)
@@ -145,12 +142,11 @@ def day23(inp):
         # #print([item[0] for item in costs]); input()
         # edges = {item[1] for item in costs[:-n_drop]}
 
-    return part1, part2
-
 
 def print_poses(poses, tiles):
+    x_size = max(tiles)[0] + 1
     import numpy as np
-    arr = np.full((5, 13), fill_value=' ')
+    arr = np.full((x_size, 13), fill_value=' ')
     for one_pos, kind in poses.items():
         arr[one_pos] = kind
     for tmp_tile in tiles - poses.keys():
@@ -159,6 +155,7 @@ def print_poses(poses, tiles):
 
 
 def find_path(adjacency, start, end):
+    """Find a path (ignoring animals) between two tiles."""
     comefrom = {}
     tile = start
     edges = {tile}
@@ -185,11 +182,39 @@ def find_path(adjacency, start, end):
         edges = next_edges
 
 
+def cost_lower_bound(hashable_state, target, type_costs, steps, rooms):
+    """
+    Give a lower bound for the lowest cost from state to target.
+
+    Estimation: measure cost of moving each animal to the topmost
+    tile of their respective rooms, ignoring all other animals.
+
+    """
+    if isinstance(hashable_state, dict):
+        hashable_state = hashable_state.items()
+
+    cost_bound = 0
+    for pos, kind in hashable_state:
+        if pos[0] >= 2 and pos[1] == rooms[kind]:
+            # we're in the right room, might not have to move at all
+            continue
+        cost_bound += type_costs[kind] * steps[pos, (2, rooms[kind])]
+    return cost_bound
+
+
 if __name__ == "__main__":
     testinp = open('day23.testinp').read()
-    print(*day23(testinp))
+    #print(day23(testinp), day23(testinp, part2=True))
     inp = open('day23.inp').read()
-    print(*day23(inp))
-    # 18049 too high
-    # 16831 too high
-    # 16091 too high
+    #print(day23(inp), day23(inp, part2=True))
+
+    #print(day23(testinp, part2=False))
+    # 24 seconds with fixed heuristic and printing
+    # 17 seconds with fixed heuristic and no printing
+    # 11 seconds with _really_ fixed heuristic and no printing
+    #print(day23(inp, part2=False))
+    # 19 minutes with buggy heuristic
+    # 6 minutes 10 seconds with fixed heuristic
+
+    #print(day23(testinp, part2=True))
+    print(day23(inp, part2=True))
