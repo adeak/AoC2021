@@ -1,5 +1,6 @@
 from collections import defaultdict
 from operator import itemgetter
+from heapq import heappush, heappop, heapify
 
 def day23(inp, part2=False):
     type_costs = dict(zip('ABCD', [1, 10, 100, 1000]))
@@ -56,16 +57,38 @@ def day23(inp, part2=False):
     }
     rooms = {kind: index[1] for index, kind in target.items()}
 
+    # # try to give an upper bound to cost
+    # # upper bound for cost: move everyone to a further corner, then to the bottom of their rooms
+    # corners = [(1, 1), (1, 11)]
+    # cost_upper_bound = 0
+    # for pos, kind in poses.items():
+    #     goal = (max_depth, rooms[kind])
+    #     potential_costs = [
+    #         type_costs[kind]*(steps[pos, corner] + steps[corner, goal])
+    #         for corner in corners
+    #     ]
+    #     cost_upper_bound += max(potential_costs)
+    # cost_upper_bound = cost_upper_bound*2//3  # fudge factor; result seems safe from part1, and part2 testinp
+    # print(cost_upper_bound)
+
+
     all_costs = {tuple(sorted(poses.items())): 0}  # tuple of dict items -> cost mapping
     start = tuple(sorted(poses.items()))
     initial_cost_bound = cost_lower_bound(start, target, type_costs, steps, rooms)
+    #all_cost_bounds = {tuple(sorted(poses.items())): initial_cost_bound}  # tuple of dict items -> cost mapping
     #edges = {(initial_cost_bound, start)}  # set of (cost lower bound, edge state) tuples
-    #edges = [(initial_cost_bound, start)]  # heapq of (cost lower bound, edge state) tuples
-    edges = {start: initial_cost_bound}  # dict of positions -> cost estimate mapping
+    edges = [(initial_cost_bound, start)]  # heapq of (cost lower bound, edge state) tuples
+    #edges = {start: initial_cost_bound}  # dict of positions -> cost estimate mapping
+    it = 0
     while edges:
+        # TODO DEBUG tmp FIXME:
+        it += 1
+        #edges = [(cost, poses) for poses, cost in dict((p, c) for c, p in sorted(edges)).items()]
+        #heapify(edges)
+        # assert len(edges) == len({start for cost, start in edges}), (len(edges), len({start for cost, start in edges})) # no duplicate positions
         # take the cheapest step
-        edge, cost_estimate = min(edges.items(), key=itemgetter(1))
-        del edges[edge]
+        #edge, cost_estimate = min(edges.items(), key=itemgetter(1))
+        cost_estimate, edge = heappop(edges)
         cost_now = all_costs[edge]  # actual cost of reaching "edge"
         #print(f'Cost now: {cost_now}, {cost_estimate}...')
         edge_dict = dict(edge)
@@ -117,10 +140,18 @@ def day23(inp, part2=False):
                 if new_cost >= old_cost:
                     # we were here before and now it's not better at all
                     continue
+                new_cost_bound = cost_lower_bound(next_poses, target, type_costs, steps, rooms)
+                #if hashable_next_poses in all_cost_bounds:
+                #    if all_cost_bounds[hashable_next_poses] < new_cost_bound:
+                #        # we were here before and better
+                #        # (probably won't happen)
+                #        assert False
+                #        continue
+                #    assert False, (edges, hashable_next_poses)
                 # TODO: revisit or remove this:
-                #if new_cost >= cost_bound:
-                #    # this has to be a bad path
-                #    continue
+                # if new_cost >= cost_upper_bound:
+                #     # this has to be a bad path
+                #     continue
 
                 ## DEBUG TODO REMOVE: plot move
                 #print_poses(poses, tiles)
@@ -131,10 +162,22 @@ def day23(inp, part2=False):
                 # _now_ it's worth moving from pos to next_pos
                 if next_poses == target:
                     #print(f'Best cost for target: {cost}')
+                    print(it, 'iterations')
                     return new_cost
                 all_costs[hashable_next_poses] = new_cost
-                cost_estimate = new_cost + cost_lower_bound(next_poses, target, type_costs, steps, rooms)
-                edges[hashable_next_poses] = cost_estimate
+                #all_cost_bounds[hashable_next_poses] = new_cost_bound
+                cost_estimate = new_cost + new_cost_bound
+                heappush(edges, (cost_estimate, hashable_next_poses))
+        
+        if not it % 10_000:
+            # prune duplicate positions in the heap (slow but saves memory)
+            before = len(edges)
+            edges = [(cost, poses) for poses, cost in dict((p, c) for c, p in sorted(edges)).items()]
+            after = len(edges)
+            print(f'pruning... {before} -> {after}')
+            #print(f'cost range: {min(edges)[0]} -> {max(edges)[0]}')
+            heapify(edges)
+
         # # heuristic: prune 10% costliest edges...
         # # (20% works for example, not for real data)
         # costs = sorted((all_costs[edge], edge) for edge in edges)
@@ -212,9 +255,12 @@ if __name__ == "__main__":
     # 24 seconds with fixed heuristic and printing
     # 17 seconds with fixed heuristic and no printing
     # 11 seconds with _really_ fixed heuristic and no printing
-    #print(day23(inp, part2=False))
+    # 1.3 seconds with heapq
+    print(day23(inp, part2=False))
     # 19 minutes with buggy heuristic
     # 6 minutes 10 seconds with fixed heuristic
+    # 6.5 seconds with heapq; duplicate edges and huge memory need
+    # 5.6 seconds with heapq; pruning duplicates every 10_000 edges
 
     #print(day23(testinp, part2=True))
-    print(day23(inp, part2=True))
+    #print(day23(inp, part2=True))
