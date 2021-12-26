@@ -1,33 +1,36 @@
 from itertools import count
+
 import numpy as np
 
+
 def day25(inp):
-    floor_raw = np.array([list(row) for row in inp.splitlines()])
-    shape = floor_raw.shape
+    floor = np.array([list(row) for row in inp.splitlines()])
+    shape = floor.shape
 
+    kind_codes = '>v'
     deltas = np.array([(0, 1), (1, 0)])
-    encoding = dict(zip('>v', deltas))
-    floor = np.full(shape, fill_value=-1)
-    for kind, code in enumerate(encoding):
-        floor[floor_raw == code] = kind  # 0, 1 for the four kinds (floor is -1 lava)
+    poses = [np.array((floor == kind_code).nonzero()) for kind_code in kind_codes]
+    # two lists with shape (2, n1) and (2, n2) for the two herds:
+    # for each herd and each axis n_specimens indices
 
-    # brute force
+    # convert 2d indices to linear indices for faster lookup later
+    poses = [np.ravel_multi_index(poses_now, shape) for poses_now in poses]
+
+    n_east = poses[0].size
+    all_poses = np.concatenate(poses)
+    poses = all_poses[:n_east], all_poses[n_east:]
+    # now both elements of poses are a view into the same underlying array
+
     for i in count(1):
         could_move = False
-        for kind in range(2):
-            cuc_mask = floor == kind
-            directions = deltas[floor]  # shape (m, n, 2) for each site; only sane where cuc_mask is True
-            cuc_inds = np.array(cuc_mask.nonzero()).T  # shape (n_cucs, 2) indices (old positions)
-            next_poses = np.mod(cuc_inds + directions[tuple(cuc_inds.T)], shape)  # shape (n_cucs, 2) indices
+        for kind, delta in enumerate(deltas):
+            poses_now = poses[kind]
+            cucumbs = np.unravel_index(poses_now, shape)  # shape (n_herd, 2) proper 2d indices
+            next_poses = np.ravel_multi_index(cucumbs + delta[:, None], shape, mode='wrap')  # shape (n_herd,) 1d indices
 
             # find free cucumbers
-            free_poses_mask = floor[next_poses[:, 0], next_poses[:, 1]] == -1
-            next_poses = next_poses[free_poses_mask]  # shape (n_mobile, 2) new positions
-            cuc_inds = cuc_inds[free_poses_mask]  # shape (n_mobile, 2) old positions
-
-            # step free cucumbers
-            floor[tuple(next_poses.T)] = floor[tuple(cuc_inds.T)]
-            floor[tuple(cuc_inds.T)] = -1
+            free_poses_mask = ~np.in1d(next_poses, all_poses)
+            poses_now[free_poses_mask] = next_poses[free_poses_mask]
 
             if free_poses_mask.any():
                 # this herd could move
